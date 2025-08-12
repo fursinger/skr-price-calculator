@@ -30,84 +30,92 @@
   .toggle{display:inline-flex; background:#f0f4ff; border:1px solid var(--line); border-radius:10px; padding:4px; gap:4px}
   .toggle button{border:0; background:transparent; padding:8px 12px; border-radius:8px; cursor:pointer; font-weight:600; color:#41516b}
   .toggle button.active{background:#ffffff; color:#0f172a; box-shadow:0 1px 0 rgba(0,0,0,.04)}
-  .tiers{display:grid; grid-template-columns:repeat(3,1fr); gap:16px; font-size:12px; color:var(--muted)}
-  .tier-box{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px}
-  .tier-box h3{margin:0 0 8px; font-size:13px; color:var(--ink)}
+  /* Tier legend */
+  .legend{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px}
+  @media (max-width:900px){ .legend{grid-template-columns:1fr} }
+  .trow{display:flex; justify-content:space-between; border-bottom:1px dashed var(--line); padding:6px 0; font-size:13px}
+  .thead{display:flex; justify-content:space-between; font-weight:600; padding-bottom:8px; border-bottom:1px solid var(--line)}
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>Skribble Pricing Calculator</h1>
+
+  <!-- Inputs on top -->
   <div class="panel">
     <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap">
       <h2 style="margin:0">Inputs</h2>
-      <div class="toggle">
+      <div class="toggle" aria-label="Billing period">
         <button id="btnMonthly" class="active">Monthly</button>
         <button id="btnYearly">Yearly</button>
       </div>
+      <span class="badge">Volumes are per selected period</span>
     </div>
+
     <div class="grid" style="margin-top:10px">
       <div><label for="fullSeats">Full seats</label><input id="fullSeats" type="number" value="3" min="0"></div>
       <div><label for="signerSeats">Signer seats</label><input id="signerSeats" type="number" value="5" min="0"></div>
     </div>
+
     <div class="grid3" style="margin-top:8px">
       <div><label for="ses">SES signatures / <span id="sesUnit">month</span></label><input id="ses" type="number" value="250" min="0"></div>
       <div><label for="aes">AES signatures / <span id="aesUnit">month</span></label><input id="aes" type="number" value="0" min="0"></div>
       <div><label for="qes">QES signatures / <span id="qesUnit">month</span></label><input id="qes" type="number" value="0" min="0"></div>
     </div>
   </div>
+
+  <!-- Results as 4 columns -->
   <div class="cards" id="cards"></div>
-  <div class="tiers">
-    <div class="tier-box" id="sesTiers"><h3>SES Tiers</h3></div>
-    <div class="tier-box" id="aesTiers"><h3>AES Tiers</h3></div>
-    <div class="tier-box" id="qesTiers"><h3>QES Tiers</h3></div>
+
+  <!-- Tier explanation -->
+  <div class="panel">
+    <h2 style="margin-top:0">Pricing tiers (per selected period)</h2>
+    <div class="legend">
+      <div>
+        <div class="thead"><span>SES range</span><span>€/unit</span></div>
+        <div id="legendSES"></div>
+      </div>
+      <div>
+        <div class="thead"><span>AES range</span><span>€/unit</span></div>
+        <div id="legendAES"></div>
+      </div>
+      <div>
+        <div class="thead"><span>QES range</span><span>€/unit</span></div>
+        <div id="legendQES"></div>
+      </div>
+    </div>
   </div>
 </div>
+
 <script>
 (function(){
-  const SES_TIERS = [
-    { limit: 100, price: 0.50 },
-    { limit: 500, price: 0.45 },
-    { limit: 1000, price: 0.35 },
-    { limit: 5000, price: 0.30 },
-    { limit: 10000, price: 0.25 },
-    { limit: 25000, price: 0.20 },
-    { limit: 50000, price: 0.18 },
-    { limit: 100000, price: 0.15 },
-    { limit: Infinity, price: 0.10 }
-  ];
-  const AES_TIERS = [
-    { limit: 100, price: 1.80 },
-    { limit: 500, price: 1.62 },
-    { limit: 1000, price: 1.26 },
-    { limit: 5000, price: 1.08 },
-    { limit: 10000, price: 0.90 },
-    { limit: 25000, price: 0.72 },
-    { limit: 50000, price: 0.25 }, // min price at 50k
-    { limit: 100000, price: 0.25 },
-    { limit: Infinity, price: 0.25 }
-  ];
-  const QES_TIERS = [
-    { limit: 100, price: 2.50 },
-    { limit: 500, price: 2.25 },
-    { limit: 1000, price: 1.75 },
-    { limit: 5000, price: 1.50 },
-    { limit: 10000, price: 1.00 }, // min price at 10k
-    { limit: 25000, price: 1.00 },
-    { limit: 50000, price: 1.00 },
-    { limit: 100000, price: 1.00 },
-    { limit: Infinity, price: 1.00 }
-  ];
+  // Thresholds shared across SES/AES/QES
+  const THRESHOLDS = [100, 500, 1000, 5000, 10000, 25000, 50000, 100000, Infinity];
+
+  // SES tiers (exact values as specified earlier)
+  const SES_TIERS = [0.50, 0.45, 0.35, 0.30, 0.25, 0.20, 0.18, 0.15, 0.10]
+    .map((price, i)=>({ limit: THRESHOLDS[i], price }));
+
+  // AES: minimum €0.25 from 50k units upwards
+  const AES_TIERS = [1.80, 1.62, 1.26, 1.08, 0.90, 0.72, 0.25, 0.25, 0.25]
+    .map((price, i)=>({ limit: THRESHOLDS[i], price }));
+
+  // QES: slower descent, still differences at higher tiers; reaches €1.00 only at 100k+
+  const QES_TIERS = [2.50, 2.35, 2.10, 1.70, 1.40, 1.20, 1.10, 1.00, 1.00]
+    .map((price, i)=>({ limit: THRESHOLDS[i], price }));
+
   const PRICING = {
     plans: [
-      { key:'free', name:'Free',  monthlyFixed:0,  yearlyFixed:0,  seatMonthly:{full:0, signer:0},   seatYearly:{full:0, signer:0},   seatAware:false },
-      { key:'basic',name:'Basic', monthlyFixed:11, yearlyFixed:108, seatMonthly:{full:0, signer:0},   seatYearly:{full:0, signer:0},   seatAware:false },
-      { key:'team', name:'Team',  monthlyFixed:0,  yearlyFixed:0,  seatMonthly:{full:20, signer:10}, seatYearly:{full:216, signer:108}, seatAware:true },
-      { key:'pro',  name:'Pro',   monthlyFixed:0,  yearlyFixed:0,  seatMonthly:{full:36, signer:15}, seatYearly:{full:284, signer:144}, seatAware:true }
+      { key:'free',   name:'Free',   monthlyFixed:0,  yearlyFixed:0,  seatMonthly:{full:0,  signer:0},  seatYearly:{full:0,   signer:0},  seatAware:false },
+      { key:'single', name:'Single', monthlyFixed:11, yearlyFixed:108,seatMonthly:{full:0,  signer:0},  seatYearly:{full:0,   signer:0},  seatAware:false },
+      { key:'team',   name:'Team',   monthlyFixed:0,  yearlyFixed:0,  seatMonthly:{full:20, signer:10}, seatYearly:{full:216, signer:108},seatAware:true  },
+      { key:'pro',    name:'Pro',    monthlyFixed:0,  yearlyFixed:0,  seatMonthly:{full:36, signer:15}, seatYearly:{full:284, signer:144},seatAware:true  }
     ]
   };
+
   const $ = id => document.getElementById(id);
-  const fmt = n => '€' + (Math.round(n * 100) / 100).toFixed(2);
+  const fmt = n => '€' + (Math.round(n*100)/100).toFixed(2);
+
   let period = 'monthly';
   function setPeriod(p){
     period = p;
@@ -115,79 +123,110 @@
     $('btnYearly').classList.toggle('active', p==='yearly');
     ['sesUnit','aesUnit','qesUnit'].forEach(id=> $(id).textContent = p==='monthly' ? 'month' : 'year');
     compute();
+    renderLegends();
   }
+
   function valInt(id){
     const n = parseInt($(id).value, 10);
     return Number.isFinite(n) && n >= 0 ? n : 0;
   }
-  function tierCost(units, tiers){
-    let remaining = units, cost = 0, prev=0;
-    for(const t of tiers){
-      const span = (t.limit===Infinity ? remaining : t.limit - prev);
+
+  // Marginal bracket pricing
+  function marginalCost(units, tiers){
+    let remaining = units, prev = 0, cost = 0;
+    for (const t of tiers){
+      if (remaining <= 0) break;
+      const span = (t.limit === Infinity ? remaining : Math.max(0, t.limit - prev));
       const take = Math.min(remaining, span);
       cost += take * t.price;
       remaining -= take;
-      prev = t.limit;
-      if(remaining<=0) break;
+      prev = (t.limit === Infinity ? prev + take : t.limit);
     }
     return cost;
   }
-  function compute(){
+
+  function totalsForPeriod(){
     const full = valInt('fullSeats');
     const signer = valInt('signerSeats');
     const sesUnits = valInt('ses');
     const aesUnits = valInt('aes');
     const qesUnits = valInt('qes');
-    const sesM = period==='monthly' ? sesUnits : sesUnits/12;
-    const aesM = period==='monthly' ? aesUnits : aesUnits/12;
-    const qesM = period==='monthly' ? qesUnits : qesUnits/12;
-    const usageMonthly = {
-      ses: tierCost(sesM, SES_TIERS),
-      aes: tierCost(aesM, AES_TIERS),
-      qes: tierCost(qesM, QES_TIERS)
+
+    // Units are already per selected period
+    const usageCost = {
+      ses: marginalCost(sesUnits, SES_TIERS),
+      aes: marginalCost(aesUnits, AES_TIERS),
+      qes: marginalCost(qesUnits, QES_TIERS)
     };
-    const usageYearly = {
-      ses: usageMonthly.ses*12,
-      aes: usageMonthly.aes*12,
-      qes: usageMonthly.qes*12
-    };
-    $('cards').innerHTML = PRICING.plans.map(p=>{
-      let seatsM = 0, seatsY = 0;
-      if (p.seatAware){
-        seatsM = full * p.seatMonthly.full + signer * p.seatMonthly.signer;
-        seatsY = full * p.seatYearly.full + signer * p.seatYearly.signer;
-      }
-      const monthTotal = p.monthlyFixed + seatsM + usageMonthly.ses + usageMonthly.aes + usageMonthly.qes;
-      const yearTotal  = p.yearlyFixed  + seatsY + usageYearly.ses  + usageYearly.aes  + usageYearly.qes;
-      const tot = period==='monthly' ? monthTotal : yearTotal;
-      const subSeats = period==='monthly' ? (p.monthlyFixed + seatsM) : (p.yearlyFixed + seatsY);
-      const sesCostVal = period==='monthly' ? usageMonthly.ses : usageYearly.ses;
-      const aesCostVal = period==='monthly' ? usageMonthly.aes : usageYearly.aes;
-      const qesCostVal = period==='monthly' ? usageMonthly.qes : usageYearly.qes;
-      return `<div class="card">
-        <div class="title"><strong>${p.name}</strong><span class="badge">${period==='monthly'?'Per month':'Per year'}</span></div>
-        <div class="price">${fmt(tot)}</div>
+
+    return PRICING.plans.map(p=>{
+      const subSeats = (period==='monthly')
+        ? (p.seatAware ? full*p.seatMonthly.full + signer*p.seatMonthly.signer : p.monthlyFixed)
+        : (p.seatAware ? full*p.seatYearly.full  + signer*p.seatYearly.signer  : p.yearlyFixed);
+
+      const total = subSeats + usageCost.ses + usageCost.aes + usageCost.qes;
+
+      return {
+        name: p.name,
+        subSeats,
+        ses: usageCost.ses,
+        aes: usageCost.aes,
+        qes: usageCost.qes,
+        total
+      };
+    });
+  }
+
+  function renderCards(){
+    const rows = totalsForPeriod();
+    $('cards').innerHTML = rows.map(r=>`
+      <div class="card">
+        <div class="title"><strong>${r.name}</strong><span class="badge">${period==='monthly'?'Per month':'Per year'}</span></div>
+        <div class="price">${fmt(r.total)}</div>
         <div class="hr"></div>
-        <div class="row"><span class="muted">Subscription / seats</span><span>${fmt(subSeats)}</span></div>
-        <div class="row"><span class="muted">SES usage</span><span>${fmt(sesCostVal)}</span></div>
-        <div class="row"><span class="muted">AES usage</span><span>${fmt(aesCostVal)}</span></div>
-        <div class="row"><span class="muted">QES usage</span><span>${fmt(qesCostVal)}</span></div>
-      </div>`;
+        <div class="row"><span class="muted">Subscription / seats</span><span>${fmt(r.subSeats)}</span></div>
+        <div class="row"><span class="muted">SES usage</span><span>${fmt(r.ses)}</span></div>
+        <div class="row"><span class="muted">AES usage</span><span>${fmt(r.aes)}</span></div>
+        <div class="row"><span class="muted">QES usage</span><span>${fmt(r.qes)}</span></div>
+      </div>
+    `).join('');
+  }
+
+  function renderLegends(){
+    $('legendSES').innerHTML = buildLegend(SES_TIERS);
+    $('legendAES').innerHTML = buildLegend(AES_TIERS);
+    $('legendQES').innerHTML = buildLegend(QES_TIERS);
+  }
+
+  function buildLegend(tiers){
+    let prev = 0;
+    return tiers.map(t=>{
+      let label;
+      if (t.limit === Infinity){
+        label = '>' + prev.toLocaleString();
+      } else if (prev === 0){
+        label = '0–' + t.limit.toLocaleString();
+      } else {
+        label = (prev+1).toLocaleString() + '–' + t.limit.toLocaleString();
+      }
+      prev = (t.limit === Infinity ? prev : t.limit);
+      return `<div class="trow"><span>${label}</span><span>${fmt(t.price)}</span></div>`;
     }).join('');
-    renderTierBox('sesTiers', SES_TIERS);
-    renderTierBox('aesTiers', AES_TIERS);
-    renderTierBox('qesTiers', QES_TIERS);
   }
-  function renderTierBox(id, tiers){
-    $(id).innerHTML = `<h3>${id.replace('Tiers','').toUpperCase()} Tiers</h3>` +
-      tiers.map(t=> `<div>Up to ${t.limit===Infinity?'∞':t.limit}: ${fmt(t.price)}</div>`).join('');
+
+  function compute(){
+    renderCards();
   }
+
+  // Events
   ['fullSeats','signerSeats','ses','aes','qes'].forEach(id=>{
     $(id).addEventListener('input', compute);
     $(id).addEventListener('change', compute);
   });
   $('btnMonthly').addEventListener('click', ()=> setPeriod('monthly'));
   $('btnYearly').addEventListener('click', ()=> setPeriod('yearly'));
+
+  // Init
   setPeriod('monthly');
 })();
 </script>
