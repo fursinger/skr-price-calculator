@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Skribble Price Calculator (Individual · Team · Pro)</title>
+<style>
+  :root{--bg:#0b0d12;--card:#121722;--ink:#e9eef5;--muted:#9aa7b4;--brand:#7aa2ff;--warn:#f59e0b}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+  .container{max-width:1100px;margin:28px auto 48px;padding:0 16px}
+  h1{margin:0 0 6px;font-size:26px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:14px}
+  .controls{display:grid;grid-template-columns:repeat(12,1fr);gap:12px;align-items:end;margin-bottom:14px}
+  .col-3{grid-column:span 3}
+  .col-2{grid-column:span 2}
+  .col-4{grid-column:span 4}
+  @media (max-width:900px){.controls{grid-template-columns:repeat(2,1fr)}.col-3,.col-2,.col-4{grid-column:span 1}}
+  label{font-weight:600}
+  .field{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:8px 10px}
+  input[type=number]{width:100%;background:transparent;border:0;outline:0;color:var(--ink);font-size:15px}
+  .toggle{display:inline-flex;border:1px solid rgba(255,255,255,.12);border-radius:999px;overflow:hidden}
+  .toggle button{padding:8px 12px;background:transparent;border:0;color:var(--ink);cursor:pointer}
+  .toggle button.active{background:var(--brand);color:#0b0d12;font-weight:800}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  @media (max-width:900px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:14px}
+  .plan{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+  .plan h3{margin:0}
+  .price{font-weight:800;font-size:18px;text-align:right}
+  .muted{color:var(--muted)}
+  .specs{margin:10px 0 0;padding:10px;border-top:1px dashed rgba(255,255,255,.12);font-size:13px}
+  .specs ul{margin:8px 0 0 18px}
+  .note{color:var(--muted);font-size:12px;margin-top:12px}
+  .warn{color:var(--warn);font-weight:700}
+  button#runTests{background:var(--brand);border:0;color:#0b0d12;font-weight:800;border-radius:10px;padding:8px 12px;cursor:pointer}
+  pre{background:#0f1420;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px;white-space:pre-wrap}
+  a{color:inherit}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Skribble Price Calculator</h1>
+  <div class="sub">Plans and inclusions reflect <a href="https://www.skribble.com/en-eu/pricing/" target="_blank" rel="noopener">the pricing page</a> (checked Aug 2025). Individual · Team · Pro. Signatures included per plan. <strong>Team/Pro pooled AES/QES</strong> are allocated to <strong>QES first</strong>, then AES.</div>
+
+  <div class="controls">
+    <div class="col-2">
+      <label for="seats">Seats</label>
+      <div class="field"><input id="seats" type="number" min="0" step="1" value="5"></div>
+    </div>
+
+    <div class="col-4">
+      <label>Billing period</label>
+      <div class="toggle" role="tablist" aria-label="Billing period">
+        <button id="billMonthly" class="active" aria-selected="true">Monthly</button>
+        <button id="billYearly" aria-selected="false">Yearly</button>
+      </div>
+      <div class="muted" style="margin-top:6px;font-size:12px">Usage inputs are interpreted per the selected period (Monthly = per month, Yearly = per year). Seat prices differ by period.</div>
+    </div>
+
+    <div class="col-2">
+      <label for="sesUsed">SES used</label>
+      <div class="field"><input id="sesUsed" type="number" min="0" step="1" value="200"></div>
+    </div>
+    <div class="col-2">
+      <label for="aesUsed">AES used</label>
+      <div class="field"><input id="aesUsed" type="number" min="0" step="1" value="10"></div>
+    </div>
+    <div class="col-2">
+      <label for="qesUsed">QES used</label>
+      <div class="field"><input id="qesUsed" type="number" min="0" step="1" value="2"></div>
+    </div>
+  </div>
+
+  <div id="cards" class="grid" aria-live="polite"></div>
+
+  <div class="note"><strong>Seat pricing:</strong> Monthly totals use the <em>monthly per‑seat price</em>. Yearly totals use the <em>yearly per‑seat price × 12</em>. AES/QES inclusions are per user per year and pooled across seats; for monthly view we prorate the allowance to 1/12 for estimating overage. <strong>Pooled logic:</strong> QES consumes the included pool first, then AES uses any remainder; anything beyond becomes overage. Individual has 10 SES/month (120/year); AES/QES sending is not part of Individual (no overage priced). If SES exceeds the Individual allowance we flag it.</div>
+
+  <div class="card" style="margin-top:16px">
+    <h3 style="margin:0 0 8px">Self‑check / Tests</h3>
+    <button id="runTests">Run tests</button>
+    <pre id="testOut" aria-live="polite"></pre>
+  </div>
+</div>
+
+<script>
+  // Minimal helpers (ES5)
+  function euro(n){var s=n<0?'−':'';var v=Math.abs(n).toFixed(2);return s+'€'+v;}
+  function clampInt(v){var n=Number(v);if(!isFinite(n)||n<0)return 0;return Math.floor(n);} 
+  function fmtQty(x){return (Math.abs(x%1)>1e-9)? x.toFixed(2): String(x);} 
+
+  // Pricing data from pricing page (EU, Aug 2025)
+  var PLANS=[
+    {key:'individual', name:'Individual', pricePerSeat:{monthly:11, yearly:9},
+      includes:{sesPerMonth:10, sesPerYear:120, aesQesPerYear:null},
+      overage:{aes:null,qes:null},
+      bullets:[
+        '10 SES / month (120 / year)',
+        'Customise visual signature',
+        'Set signing sequence',
+        'Invited signers can sign without account',
+        'Sign with AES/QES when invited'
+      ]},
+    {key:'team', name:'Team', pricePerSeat:{monthly:29, yearly:23},
+      includes:{sesPerMonth:'Unlimited', sesPerYear:'Unlimited', aesQesPerYear:72},
+      overage:{aes:2.5,qes:4.5},
+      bullets:[
+        'Unlimited SES',
+        '72 AES/QES per user / year (pooled)',
+        'Manage company settings',
+        'Add attachments and observers',
+        'Download signature protocol',
+        'Send signature reminders'
+      ]},
+    {key:'pro', name:'Pro', pricePerSeat:{monthly:49, yearly:36},
+      includes:{sesPerMonth:'Unlimited', sesPerYear:'Unlimited', aesQesPerYear:120},
+      overage:{aes:2.0,qes:4.0},
+      bullets:[
+        'Unlimited SES',
+        '120 AES/QES per user / year (pooled)',
+        'Auto‑deletion of documents',
+        'Company branding (charged extra)',
+        'Integrations & API',
+        'SSO (charged extra)'
+      ]}
+  ];
+
+  var elSeats=document.getElementById('seats');
+  var elSesUsed=document.getElementById('sesUsed');
+  var elAesUsed=document.getElementById('aesUsed');
+  var elQesUsed=document.getElementById('qesUsed');
+  var elCards=document.getElementById('cards');
+  var elMonthly=document.getElementById('billMonthly');
+  var elYearly=document.getElementById('billYearly');
+  var billing='monthly';
+
+  function seatCostForPeriod(seats, plan, period){
+    if(period==='monthly') return seats * plan.pricePerSeat.monthly;
+    return seats * plan.pricePerSeat.yearly * 12;
+  }
+
+  function poolAllowance(seats, plan, period){
+    if(plan.key==='individual') return 0; // pooled AES/QES doesn't apply
+    var perYear=(plan.includes.aesQesPerYear||0)*seats;
+    return period==='monthly'? perYear/12 : perYear;
+  }
+
+  function allowances(seats, plan, period){
+    // Returns included allowances for SES only (for Individual warnings)
+    var sesInc=0;
+    if(plan.key==='individual'){
+      sesInc = period==='monthly' ? plan.includes.sesPerMonth : plan.includes.sesPerYear;
+    } else {
+      sesInc = Infinity; // Team/Pro
+    }
+    return {ses:sesInc};
+  }
+
+  // Split a combined pool between QES first, then AES. Return included & overage units.
+  function splitPool(aesUsed, qesUsed, pool){
+    var incQ = Math.min(qesUsed, pool);
+    var rem = Math.max(0, pool - incQ);
+    var incA = Math.min(aesUsed, rem);
+    var overQ = qesUsed - incQ;
+    var overA = aesUsed - incA;
+    return {incAES:incA, incQES:incQ, overAES:overA, overQES:overQ, remainingAfterQES:rem};
+  }
+
+  function render(){
+    var seats=clampInt(elSeats.value);
+    var sesUsed=clampInt(elSesUsed.value);
+    var aesUsed=clampInt(elAesUsed.value);
+    var qesUsed=clampInt(elQesUsed.value);
+    elSeats.value=seats; elSesUsed.value=sesUsed; elAesUsed.value=aesUsed; elQesUsed.value=qesUsed;
+
+    var html='';
+    for(var i=0;i<PLANS.length;i++){
+      var p=PLANS[i];
+      var period=(billing==='monthly'?'monthly':'yearly');
+      var seatCost = seatCostForPeriod(seats,p,period);
+      var inc=allowances(seats,p,period);
+
+      // warnings / exceed flags
+      var warnSES='';
+      if(p.key==='individual' && sesUsed > inc.ses){ warnSES=' <span class="warn">(exceeds '+inc.ses+' included)</span>'; }
+
+      var extra='<div class="muted" style="font-size:12px;margin-top:6px">';
+      var overageTotal=0;
+
+      if(p.key==='individual'){
+        extra+='SES used: '+sesUsed+warnSES;
+      } else {
+        var pool = poolAllowance(seats,p,period);
+        var split = splitPool(aesUsed, qesUsed, pool);
+        var costAES = split.overAES * (p.overage.aes||0);
+        var costQES = split.overQES * (p.overage.qes||0);
+        overageTotal = costAES + costQES;
+
+        var incAESLabel = fmtQty(split.incAES) + (period==='monthly'?' / mo':' / yr');
+        var incQESLabel = fmtQty(split.incQES) + (period==='monthly'?' / mo':' / yr');
+
+        var warnAES = split.overAES>0 ? ' <span class="warn">(exceeds '+fmtQty(split.overAES)+(period==='monthly'?'/mo':'/yr')+')</span>' : '';
+        var warnQES = split.overQES>0 ? ' <span class="warn">(exceeds '+fmtQty(split.overQES)+(period==='monthly'?'/mo':'/yr')+')</span>' : '';
+
+        extra+='QES used: '+qesUsed+' (included '+incQESLabel+')'+warnQES+', ';
+        extra+='AES used: '+aesUsed+' (included '+incAESLabel+')'+warnAES;
+        if(overageTotal>0){ extra+=' · Overage: '+euro(overageTotal)+(billing==='monthly'?' / mo':' / yr'); }
+      }
+      extra+='</div>';
+
+      var displayTotal = seatCost + overageTotal; // already in the chosen period
+      var price=euro(displayTotal);
+      var perSeat = (billing==='monthly'? PLANS[i].pricePerSeat.monthly : PLANS[i].pricePerSeat.yearly);
+      var label=(billing==='monthly'?'Monthly total':'Yearly total');
+      var perSeatLabel = '€'+perSeat.toFixed(2)+'/seat ('+(billing==='monthly'?'monthly plan':'yearly plan')+')';
+
+      html+= '\n<article class="card">\n  <div class="plan">\n    <div><h3>'+p.name+'</h3><div class="muted">'+seats+' seat(s) × '+perSeatLabel+'</div></div>\n    <div class="price">'+price+'<div class="muted" style="font-weight:400">'+label+'</div>'+extra+'</div>\n  </div>\n  <div class="specs">'+featuresHTML(p)+'</div>\n</article>';
+    }
+    elCards.innerHTML=html;
+  }
+
+  function featuresHTML(p){
+    var inc=p.includes; var over=p.overage;
+    var lines=['<ul>'];
+    if(inc.sesPerMonth==='Unlimited'){
+      lines.push('<li>Unlimited SES</li>');
+    }else{
+      lines.push('<li>'+inc.sesPerMonth+' SES / month ('+inc.sesPerYear+' / year)</li>');
+    }
+    if(inc.aesQesPerYear){
+      lines.push('<li>'+inc.aesQesPerYear+' AES/QES per user / year (pooled, QES first)</li>');
+    } else {
+      lines.push('<li>Sign with AES/QES when invited</li>');
+    }
+    if(over.aes||over.qes){
+      lines.push('<li>Overage after included: AES '+euro(over.aes)+' • QES '+euro(over.qes)+'</li>');
+    }
+    for(var i=0;i<p.bullets.length;i++){lines.push('<li>'+p.bullets[i]+'</li>');}
+    lines.push('</ul>');
+    return lines.join('');
+  }
+
+  function setBilling(mode){
+    billing=mode;
+    document.getElementById('billMonthly').className=mode==='monthly'?'active':'';
+    document.getElementById('billYearly').className=mode==='yearly'?'active':'';
+    render();
+  }
+
+  function bind(){
+    var ev=['input','change'];
+    var ids=['seats','sesUsed','aesUsed','qesUsed'];
+    for(var i=0;i<ids.length;i++){
+      var node=document.getElementById(ids[i]);
+      for(var j=0;j<ev.length;j++){ node.addEventListener(ev[j],render); }
+    }
+    document.getElementById('billMonthly').addEventListener('click',function(){setBilling('monthly');});
+    document.getElementById('billYearly').addEventListener('click',function(){setBilling('yearly');});
+  }
+
+  // --- Tests ---
+  var testOut=document.getElementById('testOut');
+  function almost(a,b){return Math.abs(a-b)<=1e-6;}
+  function assert(name,cond,lines){lines.push((cond?'✅':'❌')+' '+name);} 
+  function runTests(){
+    var lines=[];
+    // Seat price tests with new dual pricing
+    var team=PLANS[1], pro=PLANS[2], ind=PLANS[0];
+    // Monthly: 10 seats Team => 10*29 = 290
+    var mTeam = (10*team.pricePerSeat.monthly); assert('M1 Team 10 seats monthly €290', almost(mTeam,290), lines);
+    // Yearly: 10 seats Team => 10*23*12 = 2760
+    var yTeam = (10*team.pricePerSeat.yearly*12); assert('Y1 Team 10 seats yearly €2760', almost(yTeam,2760), lines);
+    // Monthly: 3 seats Pro => 3*49 = 147
+    var mPro = (3*pro.pricePerSeat.monthly); assert('M2 Pro 3 seats monthly €147', almost(mPro,147), lines);
+    // Yearly: 3 seats Pro => 3*36*12 = 1296
+    var yPro = (3*pro.pricePerSeat.yearly*12); assert('Y2 Pro 3 seats yearly €1296', almost(yPro,1296), lines);
+
+    // Pool / overage logic unchanged
+    // A: Team, 0 seats, monthly: pool 0 -> all AES/QES are overage
+    var poolA = poolAllowance(0,team,'monthly');
+    var splitA = splitPool(10,5,poolA); // 10 AES, 5 QES
+    assert('A1 pool 0', almost(poolA,0), lines);
+    assert('A2 AES over 10', almost(splitA.overAES,10), lines);
+    assert('A3 QES over 5', almost(splitA.overQES,5), lines);
+
+    // B: Team, 1 seat, monthly, AES used 10, QES 0 => pool 6, over AES 4 -> €10
+    var poolB = poolAllowance(1,team,'monthly');
+    var splitB = splitPool(10,0,poolB);
+    assert('B1 pool 6', almost(poolB,6), lines);
+    assert('B2 AES over 4', almost(splitB.overAES,4), lines);
+
+    // C: Pro, 3 seats, yearly, QES used 500 => pool 360 -> QES over 140 (cost 560)
+    var poolC = poolAllowance(3,pro,'yearly');
+    var splitC = splitPool(0,500,poolC);
+    assert('C1 pool 360', almost(poolC,360), lines);
+    assert('C2 QES over 140', almost(splitC.overQES,140), lines);
+
+    // D: Individual, SES used 15 monthly => warn only, no overage cost
+    var sesInc = allowances(1,ind,'monthly').ses; assert('D1 ind SES inc 10',almost(sesInc,10),lines);
+
+    // E: Team, 1 seat, yearly: AES 60, QES 60 => pool 72; include QES 60, AES 12; AES over 48
+    var poolE = poolAllowance(1,team,'yearly');
+    var splitE = splitPool(60,60,poolE);
+    assert('E1 pool 72', almost(poolE,72), lines);
+    assert('E2 incQES 60', almost(splitE.incQES,60), lines);
+    assert('E3 incAES 12', almost(splitE.incAES,12), lines);
+    assert('E4 AES over 48', almost(splitE.overAES,48), lines);
+
+    testOut.textContent=lines.join('\n');
+  }
+  document.getElementById('runTests').addEventListener('click',runTests);
+
+  // init
+  bind();
+  setBilling('monthly');
+</script>
+</body>
+</html>
