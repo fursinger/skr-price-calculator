@@ -53,12 +53,12 @@
     </div>
 
     <div class="grid" style="margin-top:10px">
-      <div><label for="fullSeats">Full seats</label><input id="fullSeats" type="number" value="3" min="0"></div>
-      <div><label for="signerSeats">Signer seats</label><input id="signerSeats" type="number" value="5" min="0"></div>
+      <div><label for="fullSeats">Full seats</label><input id="fullSeats" type="number" value="1" min="0"></div>
+      <div><label for="signerSeats">Signer seats</label><input id="signerSeats" type="number" value="0" min="0"></div>
     </div>
 
     <div class="grid3" style="margin-top:8px">
-      <div><label for="ses">SES signatures / <span id="sesUnit">month</span></label><input id="ses" type="number" value="250" min="0"></div>
+      <div><label for="ses">SES signatures / <span id="sesUnit">month</span></label><input id="ses" type="number" value="0" min="0"></div>
       <div><label for="aes">AES signatures / <span id="aesUnit">month</span></label><input id="aes" type="number" value="0" min="0"></div>
       <div><label for="qes">QES signatures / <span id="qesUnit">month</span></label><input id="qes" type="number" value="0" min="0"></div>
     </div>
@@ -69,7 +69,7 @@
 
   <!-- Tier explanation -->
   <div class="panel">
-    <h2 style="margin-top:0">Pricing tiers (per selected period)</h2>
+    <h2 style="margin-top:0">Pricing tiers (monthly, resets each month)</h2>
     <div class="legend">
       <div>
         <div class="thead"><span>SES range</span><span>€/unit</span></div>
@@ -89,27 +89,27 @@
 
 <script>
 (function(){
-  // Thresholds shared across SES/AES/QES
-  const THRESHOLDS = [100, 500, 1000, 5000, 10000, 25000, 50000, 100000, Infinity];
+  // More granular thresholds for PLG - smaller brackets at low end, bigger at high end
+  const THRESHOLDS = [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, Infinity];
 
-  // SES tiers (exact values as specified earlier)
-  const SES_TIERS = [0.50, 0.45, 0.35, 0.30, 0.25, 0.20, 0.18, 0.15, 0.10]
+  // SES tiers - starting at €0.50, gentle progression with steeper discounts at scale
+  const SES_TIERS = [0.50, 0.45, 0.40, 0.35, 0.30, 0.25, 0.22, 0.20, 0.18, 0.15, 0.12, 0.10, 0.08]
     .map((price, i)=>({ limit: THRESHOLDS[i], price }));
 
-  // AES: minimum €0.25 from 50k units upwards
-  const AES_TIERS = [1.80, 1.62, 1.26, 1.08, 0.90, 0.72, 0.25, 0.25, 0.25]
+  // AES tiers - starting at €1.00, more dramatic volume discounts
+  const AES_TIERS = [1.00, 0.95, 0.90, 0.85, 0.75, 0.65, 0.55, 0.45, 0.35, 0.30, 0.25, 0.22, 0.20]
     .map((price, i)=>({ limit: THRESHOLDS[i], price }));
 
-  // QES: slower descent, still differences at higher tiers; reaches €1.00 only at 100k+
-  const QES_TIERS = [2.50, 2.35, 2.10, 1.70, 1.40, 1.20, 1.10, 1.00, 1.00]
+  // QES tiers - starting at €2.00, premium pricing with gradual discounts for volume
+  const QES_TIERS = [2.00, 1.90, 1.80, 1.70, 1.55, 1.40, 1.25, 1.15, 1.05, 1.00, 0.95, 0.90, 0.85]
     .map((price, i)=>({ limit: THRESHOLDS[i], price }));
 
   const PRICING = {
     plans: [
-      { key:'free',   name:'Free',   monthlyFixed:0,  yearlyFixed:0,  seatMonthly:{full:0,  signer:0},  seatYearly:{full:0,   signer:0},  seatAware:false },
-      { key:'single', name:'Single', monthlyFixed:11, yearlyFixed:108,seatMonthly:{full:0,  signer:0},  seatYearly:{full:0,   signer:0},  seatAware:false },
-      { key:'team',   name:'Team',   monthlyFixed:0,  yearlyFixed:0,  seatMonthly:{full:20, signer:10}, seatYearly:{full:216, signer:108},seatAware:true  },
-      { key:'pro',    name:'Pro',    monthlyFixed:0,  yearlyFixed:0,  seatMonthly:{full:36, signer:15}, seatYearly:{full:284, signer:144},seatAware:true  }
+      { key:'free',    name:'Free',    monthlyFixed:0,  yearlyFixed:0,  seatMonthly:{full:0,  signer:0},  seatYearly:{full:0,   signer:0},  seatAware:false },
+      { key:'starter', name:'Starter', monthlyFixed:11, yearlyFixed:108,seatMonthly:{full:0,  signer:0},  seatYearly:{full:0,   signer:0},  seatAware:false },
+      { key:'team',    name:'Team',    monthlyFixed:0,  yearlyFixed:0,  seatMonthly:{full:20, signer:10}, seatYearly:{full:216, signer:108},seatAware:true  },
+      { key:'pro',     name:'Pro',     monthlyFixed:0,  yearlyFixed:0,  seatMonthly:{full:36, signer:15}, seatYearly:{full:284, signer:144},seatAware:true  }
     ]
   };
 
@@ -152,12 +152,21 @@
     const aesUnits = valInt('aes');
     const qesUnits = valInt('qes');
 
-    // Units are already per selected period
-    const usageCost = {
-      ses: marginalCost(sesUnits, SES_TIERS),
-      aes: marginalCost(aesUnits, AES_TIERS),
-      qes: marginalCost(qesUnits, QES_TIERS)
+    // Calculate monthly usage cost (tiers reset each month)
+    const monthlyUsageCost = {
+      ses: marginalCost(period === 'monthly' ? sesUnits : sesUnits / 12, SES_TIERS),
+      aes: marginalCost(period === 'monthly' ? aesUnits : aesUnits / 12, AES_TIERS),
+      qes: marginalCost(period === 'monthly' ? qesUnits : qesUnits / 12, QES_TIERS)
     };
+
+    // For yearly billing, multiply monthly usage by 12 since tiers reset each month
+    const usageCost = period === 'monthly' 
+      ? monthlyUsageCost
+      : {
+          ses: monthlyUsageCost.ses * 12,
+          aes: monthlyUsageCost.aes * 12,
+          qes: monthlyUsageCost.qes * 12
+        };
 
     return PRICING.plans.map(p=>{
       const subSeats = (period==='monthly')
@@ -179,15 +188,19 @@
 
   function renderCards(){
     const rows = totalsForPeriod();
+    const sesUnits = valInt('ses');
+    const aesUnits = valInt('aes');
+    const qesUnits = valInt('qes');
+    
     $('cards').innerHTML = rows.map(r=>`
       <div class="card">
         <div class="title"><strong>${r.name}</strong><span class="badge">${period==='monthly'?'Per month':'Per year'}</span></div>
         <div class="price">${fmt(r.total)}</div>
         <div class="hr"></div>
         <div class="row"><span class="muted">Subscription / seats</span><span>${fmt(r.subSeats)}</span></div>
-        <div class="row"><span class="muted">SES usage</span><span>${fmt(r.ses)}</span></div>
-        <div class="row"><span class="muted">AES usage</span><span>${fmt(r.aes)}</span></div>
-        <div class="row"><span class="muted">QES usage</span><span>${fmt(r.qes)}</span></div>
+        <div class="row"><span class="muted">SES usage (${sesUnits.toLocaleString()})</span><span>${fmt(r.ses)}</span></div>
+        <div class="row"><span class="muted">AES usage (${aesUnits.toLocaleString()})</span><span>${fmt(r.aes)}</span></div>
+        <div class="row"><span class="muted">QES usage (${qesUnits.toLocaleString()})</span><span>${fmt(r.qes)}</span></div>
       </div>
     `).join('');
   }
