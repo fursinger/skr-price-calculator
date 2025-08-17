@@ -173,15 +173,25 @@
         };
 
     return PRICING.plans.map(p=>{
-      const subSeats = (period==='monthly')
-        ? (p.seatAware ? full*p.seatMonthly.full + signer*p.seatMonthly.signer : p.monthlyFixed)
-        : (p.seatAware ? full*p.seatYearly.full  + signer*p.seatYearly.signer  : p.yearlyFixed);
+      let fullSeatsCost, signerSeatsCost, subSeats;
+      
+      if (period === 'monthly') {
+        fullSeatsCost = p.seatAware ? full * p.seatMonthly.full : p.monthlyFixed;
+        signerSeatsCost = p.seatAware ? signer * p.seatMonthly.signer : 0;
+        subSeats = fullSeatsCost + signerSeatsCost;
+      } else {
+        fullSeatsCost = p.seatAware ? full * p.seatYearly.full : p.yearlyFixed;
+        signerSeatsCost = p.seatAware ? signer * p.seatYearly.signer : 0;
+        subSeats = fullSeatsCost + signerSeatsCost;
+      }
 
       const total = subSeats + usageCost.ses + usageCost.aes + usageCost.qes;
 
       return {
         name: p.name,
         subSeats,
+        fullSeatsCost,
+        signerSeatsCost,
         ses: usageCost.ses,
         aes: usageCost.aes,
         qes: usageCost.qes,
@@ -192,6 +202,8 @@
 
   function renderCards(){
     const rows = totalsForPeriod();
+    const full = valInt('fullSeats');
+    const signer = valInt('signerSeats');
     const sesUnits = valInt('ses');
     const aesUnits = valInt('aes');
     const qesUnits = valInt('qes');
@@ -201,15 +213,24 @@
       const aesAvg = aesUnits > 0 ? r.aes / aesUnits : 0;
       const qesAvg = qesUnits > 0 ? r.qes / qesUnits : 0;
       
+      let seatsBreakdown = '';
+      if (r.fullSeatsCost > 0 && r.signerSeatsCost > 0) {
+        seatsBreakdown = ` (${fmt(r.fullSeatsCost)} + ${fmt(r.signerSeatsCost)})`;
+      } else if (r.fullSeatsCost > 0 && full > 0) {
+        seatsBreakdown = ` (${full} × ${fmt(r.fullSeatsCost/full)})`;
+      } else if (r.signerSeatsCost > 0 && signer > 0) {
+        seatsBreakdown = ` (${signer} × ${fmt(r.signerSeatsCost/signer)})`;
+      }
+      
       return `
         <div class="card">
           <div class="title"><strong>${r.name}</strong><span class="badge">${period==='monthly'?'Per month':'Per year'}</span></div>
           <div class="price">${fmt(r.total)}</div>
           <div class="hr"></div>
-          <div class="row"><span class="muted">Subscription / seats</span><span>${fmt(r.subSeats)}</span></div>
-          <div class="row"><span class="muted">SES usage (${sesUnits.toLocaleString()})</span><span>${fmt(r.ses)}${sesUnits > 0 ? ' @ ' + fmt(sesAvg) : ''}</span></div>
-          <div class="row"><span class="muted">AES usage (${aesUnits.toLocaleString()})</span><span>${fmt(r.aes)}${aesUnits > 0 ? ' @ ' + fmt(aesAvg) : ''}</span></div>
-          <div class="row"><span class="muted">QES usage (${qesUnits.toLocaleString()})</span><span>${fmt(r.qes)}${qesUnits > 0 ? ' @ ' + fmt(qesAvg) : ''}</span></div>
+          <div class="row"><span class="muted">Subscription / seats${seatsBreakdown}</span><span>${fmt(r.subSeats)}</span></div>
+          <div class="row"><span class="muted">SES usage (${sesUnits.toLocaleString()}${sesUnits > 0 ? ' @ ' + fmt(sesAvg) : ''})</span><span>${fmt(r.ses)}</span></div>
+          <div class="row"><span class="muted">AES usage (${aesUnits.toLocaleString()}${aesUnits > 0 ? ' @ ' + fmt(aesAvg) : ''})</span><span>${fmt(r.aes)}</span></div>
+          <div class="row"><span class="muted">QES usage (${qesUnits.toLocaleString()}${qesUnits > 0 ? ' @ ' + fmt(qesAvg) : ''})</span><span>${fmt(r.qes)}</span></div>
         </div>
       `;
     }).join('');
