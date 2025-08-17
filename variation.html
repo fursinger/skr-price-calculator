@@ -152,6 +152,7 @@
   function totalsForPeriod(){
     const full = valInt('fullSeats');
     const signer = valInt('signerSeats');
+    const totalSeats = full + signer;
     const sesUnits = valInt('ses');
     const aesUnits = valInt('aes');
     const qesUnits = valInt('qes');
@@ -173,9 +174,16 @@
         };
 
     return PRICING.plans.map(p=>{
+      // Check if plan is eligible (Free and Starter only for exactly 1 full seat, 0 signer seats)
+      const isEligible = (p.key === 'free' || p.key === 'starter') ? (full === 1 && signer === 0) : true;
+      
       let fullSeatsCost, signerSeatsCost, subSeats;
       
-      if (period === 'monthly') {
+      if (!isEligible) {
+        fullSeatsCost = 0;
+        signerSeatsCost = 0;
+        subSeats = 0;
+      } else if (period === 'monthly') {
         fullSeatsCost = p.seatAware ? full * p.seatMonthly.full : p.monthlyFixed;
         signerSeatsCost = p.seatAware ? signer * p.seatMonthly.signer : 0;
         subSeats = fullSeatsCost + signerSeatsCost;
@@ -185,7 +193,7 @@
         subSeats = fullSeatsCost + signerSeatsCost;
       }
 
-      const total = subSeats + usageCost.ses + usageCost.aes + usageCost.qes;
+      const total = isEligible ? subSeats + usageCost.ses + usageCost.aes + usageCost.qes : 0;
 
       return {
         name: p.name,
@@ -195,7 +203,9 @@
         ses: usageCost.ses,
         aes: usageCost.aes,
         qes: usageCost.qes,
-        total
+        total,
+        isEligible,
+        seatAware: p.seatAware
       };
     });
   }
@@ -209,17 +219,32 @@
     const qesUnits = valInt('qes');
     
     $('cards').innerHTML = rows.map(r=>{
+      if (!r.isEligible) {
+        return `
+          <div class="card" style="opacity: 0.6;">
+            <div class="title"><strong>${r.name}</strong><span class="badge">${period==='monthly'?'Per month':'Per year'}</span></div>
+            <div class="price">–</div>
+            <div class="hr"></div>
+            <div style="text-align: center; color: var(--muted); font-size: 12px; padding: 8px;">
+              Only available for 1 full seat, 0 signer seats
+            </div>
+          </div>
+        `;
+      }
+      
       const sesAvg = sesUnits > 0 ? r.ses / sesUnits : 0;
       const aesAvg = aesUnits > 0 ? r.aes / aesUnits : 0;
       const qesAvg = qesUnits > 0 ? r.qes / qesUnits : 0;
       
       let seatsBreakdown = '';
-      if (r.fullSeatsCost > 0 && r.signerSeatsCost > 0) {
-        seatsBreakdown = ` (${fmt(r.fullSeatsCost)} + ${fmt(r.signerSeatsCost)})`;
-      } else if (r.fullSeatsCost > 0 && full > 0) {
-        seatsBreakdown = ` (${full} × ${fmt(r.fullSeatsCost/full)})`;
-      } else if (r.signerSeatsCost > 0 && signer > 0) {
-        seatsBreakdown = ` (${signer} × ${fmt(r.signerSeatsCost/signer)})`;
+      if (r.seatAware) {
+        if (r.fullSeatsCost > 0 && r.signerSeatsCost > 0) {
+          seatsBreakdown = ` (${fmt(r.fullSeatsCost)} + ${fmt(r.signerSeatsCost)})`;
+        } else if (r.fullSeatsCost > 0 && full > 0) {
+          seatsBreakdown = ` (${full} × ${fmt(r.fullSeatsCost/full)})`;
+        } else if (r.signerSeatsCost > 0 && signer > 0) {
+          seatsBreakdown = ` (${signer} × ${fmt(r.signerSeatsCost/signer)})`;
+        }
       }
       
       return `
