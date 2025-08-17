@@ -196,17 +196,23 @@
     const aesUnits = valInt('aes');
     const qesUnits = valInt('qes');
     
-    $('cards').innerHTML = rows.map(r=>`
-      <div class="card">
-        <div class="title"><strong>${r.name}</strong><span class="badge">${period==='monthly'?'Per month':'Per year'}</span></div>
-        <div class="price">${fmt(r.total)}</div>
-        <div class="hr"></div>
-        <div class="row"><span class="muted">Subscription / seats</span><span>${fmt(r.subSeats)}</span></div>
-        <div class="row"><span class="muted">SES usage (${sesUnits.toLocaleString()})</span><span>${fmt(r.ses)}</span></div>
-        <div class="row"><span class="muted">AES usage (${aesUnits.toLocaleString()})</span><span>${fmt(r.aes)}</span></div>
-        <div class="row"><span class="muted">QES usage (${qesUnits.toLocaleString()})</span><span>${fmt(r.qes)}</span></div>
-      </div>
-    `).join('');
+    $('cards').innerHTML = rows.map(r=>{
+      const sesAvg = sesUnits > 0 ? r.ses / sesUnits : 0;
+      const aesAvg = aesUnits > 0 ? r.aes / aesUnits : 0;
+      const qesAvg = qesUnits > 0 ? r.qes / qesUnits : 0;
+      
+      return `
+        <div class="card">
+          <div class="title"><strong>${r.name}</strong><span class="badge">${period==='monthly'?'Per month':'Per year'}</span></div>
+          <div class="price">${fmt(r.total)}</div>
+          <div class="hr"></div>
+          <div class="row"><span class="muted">Subscription / seats</span><span>${fmt(r.subSeats)}</span></div>
+          <div class="row"><span class="muted">SES usage (${sesUnits.toLocaleString()})</span><span>${fmt(r.ses)}${sesUnits > 0 ? ' @ ' + fmt(sesAvg) : ''}</span></div>
+          <div class="row"><span class="muted">AES usage (${aesUnits.toLocaleString()})</span><span>${fmt(r.aes)}${aesUnits > 0 ? ' @ ' + fmt(aesAvg) : ''}</span></div>
+          <div class="row"><span class="muted">QES usage (${qesUnits.toLocaleString()})</span><span>${fmt(r.qes)}${qesUnits > 0 ? ' @ ' + fmt(qesAvg) : ''}</span></div>
+        </div>
+      `;
+    }).join('');
   }
 
   function renderLegends(){
@@ -222,7 +228,7 @@
       if (t.limit === Infinity){
         label = '>' + prev.toLocaleString();
       } else if (prev === 0){
-        label = '0–' + t.limit.toLocaleString();
+        label = '1–' + t.limit.toLocaleString();
       } else {
         label = (prev+1).toLocaleString() + '–' + t.limit.toLocaleString();
       }
