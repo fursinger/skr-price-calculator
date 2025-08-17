@@ -227,7 +227,7 @@
           <div class="title"><strong>${r.name}</strong><span class="badge">${period==='monthly'?'Per month':'Per year'}</span></div>
           <div class="price">${fmt(r.total)}</div>
           <div class="hr"></div>
-          <div class="row"><span class="muted">Subscription / seats${seatsBreakdown}</span><span>${fmt(r.subSeats)}</span></div>
+          <div class="row"><span class="muted">Subscription${seatsBreakdown}</span><span>${fmt(r.subSeats)}</span></div>
           <div class="row"><span class="muted">SES usage (${sesUnits.toLocaleString()}${sesUnits > 0 ? ' @ ' + fmt(sesAvg) : ''})</span><span>${fmt(r.ses)}</span></div>
           <div class="row"><span class="muted">AES usage (${aesUnits.toLocaleString()}${aesUnits > 0 ? ' @ ' + fmt(aesAvg) : ''})</span><span>${fmt(r.aes)}</span></div>
           <div class="row"><span class="muted">QES usage (${qesUnits.toLocaleString()}${qesUnits > 0 ? ' @ ' + fmt(qesAvg) : ''})</span><span>${fmt(r.qes)}</span></div>
