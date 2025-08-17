@@ -4,6 +4,10 @@
 <meta charset="utf-8" />
 <title>Skribble Pricing Calculator</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
+<!-- Cache buster: v1734456789123 -->
 <style>
   :root { --bg:#f6f8fb; --card:#ffffff; --ink:#1b2430; --muted:#5b6b7c; --line:#e5eaf0; --accent:#2563eb; }
   *{box-sizing:border-box}
@@ -90,18 +94,18 @@
 <script>
 (function(){
   // More granular thresholds for PLG - smaller brackets at low end, bigger at high end
-  const THRESHOLDS = [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, Infinity];
+  const THRESHOLDS = [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, Infinity];
 
-  // SES tiers - starting at €0.50, gentle progression with steeper discounts at scale
-  const SES_TIERS = [0.50, 0.45, 0.40, 0.35, 0.30, 0.25, 0.22, 0.20, 0.18, 0.15, 0.12, 0.10, 0.08]
+  // SES tiers - higher pricing for very low usage, then dropping to more competitive rates
+  const SES_TIERS = [0.60, 0.50, 0.45, 0.40, 0.35, 0.30, 0.25, 0.22, 0.20, 0.18, 0.15, 0.12, 0.10, 0.08]
     .map((price, i)=>({ limit: THRESHOLDS[i], price }));
 
-  // AES tiers - starting at €1.00, more dramatic volume discounts
-  const AES_TIERS = [1.00, 0.95, 0.90, 0.85, 0.75, 0.65, 0.55, 0.45, 0.35, 0.30, 0.25, 0.22, 0.20]
+  // AES tiers - premium for very low usage, more dramatic volume discounts
+  const AES_TIERS = [1.50, 1.00, 0.95, 0.90, 0.85, 0.75, 0.65, 0.55, 0.45, 0.35, 0.30, 0.25, 0.22, 0.20]
     .map((price, i)=>({ limit: THRESHOLDS[i], price }));
 
-  // QES tiers - starting at €2.00, premium pricing with gradual discounts for volume
-  const QES_TIERS = [2.00, 1.90, 1.80, 1.70, 1.55, 1.40, 1.25, 1.15, 1.05, 1.00, 0.95, 0.90, 0.85]
+  // QES tiers - highest premium for very low usage, gradual discounts for volume
+  const QES_TIERS = [2.50, 2.00, 1.90, 1.80, 1.70, 1.55, 1.40, 1.25, 1.15, 1.05, 1.00, 0.95, 0.90, 0.85]
     .map((price, i)=>({ limit: THRESHOLDS[i], price }));
 
   const PRICING = {
